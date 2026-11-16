@@ -1,0 +1,30 @@
+{
+  "cycle_id": "c001-20261116-2102",
+  "data_version": "v001-44df464c",
+  "modelo": "B",
+  "algoritmo": "random_forest",
+  "run_id": "62a8621e797144deabc85e1a9e4d1072",
+  "features": [
+    "euribor3m",
+    "month",
+    "education",
+    "job",
+    "age",
+    "emp.var.rate",
+    "contatos_totais",
+    "day_of_week"
+  ],
+  "metrica_principal": "average_precision",
+  "valor_validacao": 0.10449441252502639,
+  "cv_media": 0.10039310126578052,
+  "decisao": {
+    "decisao": "PROMOVIDO",
+    "motivo": "N\u00e3o havia modelo vigente (primeiro ciclo)."
+  },
+  "drift_alerta_no_ciclo": false,
+  "features_com_drift": [],
+  "gatilho": "schedule",
+  "arquivo_modelo": "models/historico/c001-20261116-2102_random_forest.joblib",
+  "promovido_em": "2026-11-16T21:04:11+00:00",
+  "substituiu": null
+}

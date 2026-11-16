@@ -1,0 +1,83 @@
+{
+  "cycle_id": "c001-20261116-2102",
+  "data_version": "v001-44df464c",
+  "execucao": {
+    "gatilho": "schedule",
+    "github_run_id": "43955692226",
+    "github_run_url": "https://github.com/weillerjulia/n3-mlops-bank-marketing/actions/runs/43955692226",
+    "commit": "aeb605a",
+    "iniciado_em": "2026-11-16T21:02:46+00:00"
+  },
+  "lote": {
+    "novo": true,
+    "lote": 0,
+    "arquivo": "data/raw/lote_000.csv",
+    "periodos": [
+      "2008-05",
+      "2008-06",
+      "2008-07",
+      "2008-08",
+      "2008-10",
+      "2008-11"
+    ],
+    "linhas": 27680,
+    "sha256": "9f2fcaccde47",
+    "ingerido_em": "2026-11-16T21:02:46+00:00"
+  },
+  "drift_alerta": false,
+  "features_com_drift": [],
+  "psi_max": null,
+  "run_etl": "d3b603e6577b4d4b9587ba59c7d64a87",
+  "features_eleitas": [
+    "euribor3m",
+    "month",
+    "education",
+    "job",
+    "age",
+    "emp.var.rate",
+    "contatos_totais",
+    "day_of_week"
+  ],
+  "run_votacao": "3f50e8a7ff8e4ad385bfa397a0cdba14",
+  "candidatos": {
+    "A": {
+      "run_id": "6d093a900ae742fe886a9d2ed7012c2c",
+      "algoritmo": "regressao_logistica",
+      "val": {
+        "average_precision": 0.0984785588385417,
+        "roc_auc": 0.5939912038846784,
+        "f1": 0.0955986748698533,
+        "precision": 0.052061855670103095,
+        "recall": 0.5838150289017341,
+        "prevalencia": 0.04258985721319547,
+        "conversao_top": 0.06527093596059114,
+        "lift_top": 1.532546484808793,
+        "captura_top": 0.3063583815028902
+      },
+      "cv_average_precision_media": 0.09022595925329377,
+      "cv_average_precision_desvio": 0.006951753819040624
+    },
+    "B": {
+      "run_id": "62a8621e797144deabc85e1a9e4d1072",
+      "algoritmo": "random_forest",
+      "val": {
+        "average_precision": 0.10449441252502639,
+        "roc_auc": 0.621353097591101,
+        "f1": 0.11412268188302425,
+        "precision": 0.06509357200976404,
+        "recall": 0.4624277456647399,
+        "prevalencia": 0.04258985721319547,
+        "conversao_top": 0.07019704433497537,
+        "lift_top": 1.6482103704547395,
+        "captura_top": 0.32947976878612717
+      },
+      "cv_average_precision_media": 0.10039310126578052,
+      "cv_average_precision_desvio": 0.005219222450421855
+    }
+  },
+  "decisao": {
+    "decisao": "PROMOVIDO",
+    "motivo": "Não havia modelo vigente (primeiro ciclo)."
+  },
+  "run_decisao": "1456d4163be643ec93414675f1013b68"
+}
