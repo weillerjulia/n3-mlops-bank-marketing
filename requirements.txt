@@ -10,3 +10,5 @@ jupyter
 nbconvert==7.17.2
 nbformat==5.11.1
 ipykernel==7.4.0
+# Geração do relatório (reports/gerar_relatorio.py)
+reportlab==5.1.0
