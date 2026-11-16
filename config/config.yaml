@@ -1,0 +1,89 @@
+# Configuração central do pipeline MLOps - Trabalho N3 (Análise Preditiva)
+# Tudo que influencia uma decisão do pipeline foi definido aqui ANTES do primeiro treinamento.
+
+projeto:
+  nome: bank-marketing-n3
+  seed: 42
+
+dados:
+  # Arquivo completo da UCI. Simula o "sistema de origem" (CRM do banco):
+  # a cada ciclo, o pipeline busca o próximo lote de registros ainda não incorporados.
+  fonte: data/source/bank-additional-full.csv
+  separador: ";"
+  alvo: y
+  classe_positiva: "yes"
+  # duration só é conhecida DEPOIS da ligação -> vazamento (documentado pela própria UCI)
+  colunas_removidas: [duration]
+  # Os registros estão em ordem cronológica (mai/2008 a nov/2010)
+  periodo_inicio: "2008-05"
+  periodo_fim: "2010-11"
+  # Lote inicial (ciclo 1): campanhas de mai/2008 a nov/2008
+  lote_inicial_ate: "2008-11"
+  # Cada novo ciclo incorpora os próximos N meses com campanha
+  periodos_por_lote: 3
+  raw_dir: data/raw
+  processed_dir: data/processed
+  state_dir: data/state
+
+avaliacao:
+  # AUC-PR (average precision): adequada para classe rara (~11% de "yes")
+  # e independente de limiar de decisão.
+  metrica_principal: average_precision
+  direcao: maximize
+  metricas_secundarias: [roc_auc, f1, precision, recall]
+  # Particionamento ESTÁVEL por hash do registro_id: cada contato cai sempre na
+  # mesma partição, em qualquer ciclo. Assim nenhum modelo (nem o vigente de
+  # ciclos anteriores) treina com registros de validação/teste de outro ciclo.
+  # A ordem temporal é respeitada na CHEGADA dos lotes e monitorada via drift.
+  particionamento: hash_registro_id
+  proporcao_validacao: 0.15
+  proporcao_teste: 0.15
+  # Competição A x B: validação cruzada estratificada dentro do treino
+  cv_folds: 5
+
+features:
+  metodos: [selectkbest_mutual_info, random_forest_importance, rfe_logistic]
+  top_k: 8              # cada método elege suas 8 melhores features
+  votos_minimos: 2      # feature eleita se aprovada por >= 2 dos 3 métodos
+  min_features: 6       # se a votação eleger menos, completa pela soma de rankings
+  desempate: soma_rankings
+
+modelos:
+  A:
+    nome: regressao_logistica
+    classe: LogisticRegression
+    params:
+      C: 1.0
+      max_iter: 2000
+      class_weight: balanced
+  B:
+    nome: random_forest
+    classe: RandomForestClassifier
+    params:
+      n_estimators: 200
+      max_depth: 10
+      min_samples_leaf: 20
+      class_weight: balanced_subsample
+      n_jobs: -1
+
+promocao:
+  # O vencedor do ciclo só substitui o vigente se superar a métrica principal
+  # do vigente, na MESMA validação do ciclo, por pelo menos este valor absoluto.
+  limiar_melhoria: 0.005
+  # Piso de sanidade: o candidato precisa ser melhor que um modelo aleatório
+  # (AUC-PR aleatória = prevalência da classe positiva na validação).
+  exigir_acima_do_aleatorio: true
+
+drift:  # Critério 10 - monitoramento de drift com alerta
+  psi_atencao: 0.10
+  psi_alerta: 0.25
+  bins: 10
+
+negocio:
+  # Política de uso: o banco liga para os X% de clientes com maior probabilidade
+  percentual_contato: 0.20
+
+mlflow:
+  tracking_uri: sqlite:///mlflow.db
+  experimento: bank-marketing-n3
+  artifact_dir: mlartifacts

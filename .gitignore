@@ -1,0 +1,20 @@
+# ambientes e caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+
+# segredos (nunca versionar)
+.env
+*.token
+
+# intermediários regenerados a cada ciclo
+data/processed/
+data/state/candidatos/
+data/state/ciclo_atual.json
+data/state/votacao_ciclo.json
+data/state/cv_ciclo.csv
+data/state/rankings_features.png
+evidencias/_ciclo_em_execucao/
