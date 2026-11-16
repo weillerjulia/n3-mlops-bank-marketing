@@ -2,7 +2,7 @@
 
 Trabalho N3 de Análise Preditiva (Prof. Rodrigo Hagstrom) · Católica de Santa Catarina
 
-**Integrantes:** _preencher_
+**Integrantes:** Miguel, Julia, Ana Olska, Ana Paula e Eduardo
 
 ## Resultado de referência (teste local, 9 ciclos)
 
