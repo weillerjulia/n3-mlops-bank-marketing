@@ -63,7 +63,22 @@ models/historico_decisoes.csv          decisão de cada ciclo
 mlflow.db + mlartifacts/               tracking do MLflow (histórico de todos os ciclos)
 evidencias/<cycle_id>/                 notebooks executados, votação, CV, manifesto e previsões do ciclo
 executar_pipeline.sh                   roda um ciclo completo (usado pelo workflow e localmente)
+reports/relatorio_n3.pdf               relatório técnico (gerado a partir dos artefatos)
+reports/gerar_relatorio.py             gera o relatório em PDF
 ```
+
+## Relatório técnico
+
+O relatório da entrega está em [`reports/relatorio_n3.pdf`](reports/relatorio_n3.pdf). Ele não é escrito à mão: `reports/gerar_relatorio.py` monta o PDF lendo as evidências de cada ciclo, o histórico de decisões, o manifesto do modelo vigente, o `config.yaml` e os runs do `mlflow.db`. Assim, os números do relatório são sempre os mesmos que o pipeline produziu.
+
+Para atualizar o relatório depois de novos ciclos agendados:
+
+```bash
+git pull
+python reports/gerar_relatorio.py
+```
+
+Com dois ciclos ou mais, o relatório inclui sozinho as mudanças de features entre ciclos, o gráfico do vencedor de cada ciclo × vigente e a tabela de drift.
 
 ## Como executar localmente
 
