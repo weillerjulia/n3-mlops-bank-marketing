@@ -1,0 +1,40 @@
+{
+  "cycle_id": "c003-20261118-1924",
+  "data_version": "v003-31eeff6c",
+  "modelo": "B",
+  "algoritmo": "random_forest",
+  "run_id": "ea7e35d29be448398554d6a8f065f828",
+  "features": [
+    "euribor3m",
+    "emp.var.rate",
+    "contact",
+    "month",
+    "cons.price.idx",
+    "nr.employed",
+    "cons.conf.idx",
+    "age"
+  ],
+  "metrica_principal": "average_precision",
+  "valor_validacao": 0.2555231033225212,
+  "cv_media": 0.23477883068479155,
+  "decisao": {
+    "decisao": "PROMOVIDO",
+    "motivo": "Candidato (0.2555) supera o vigente (0.2224) em pelo menos 0.005 na valida\u00e7\u00e3o do ciclo."
+  },
+  "drift_alerta_no_ciclo": true,
+  "features_com_drift": [
+    "emp.var.rate",
+    "nr.employed",
+    "cons.price.idx",
+    "euribor3m",
+    "cons.conf.idx",
+    "month",
+    "pdays",
+    "contact",
+    "poutcome"
+  ],
+  "gatilho": "schedule",
+  "arquivo_modelo": "models/historico/c003-20261118-1924_random_forest.joblib",
+  "promovido_em": "2026-11-18T19:26:13+00:00",
+  "substituiu": "c002-20261117-1951"
+}
