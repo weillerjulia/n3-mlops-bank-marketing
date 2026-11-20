@@ -49,5 +49,17 @@
     "linhas": 1484,
     "sha256": "3f271afeb294",
     "ingerido_em": "2026-11-19T19:29:23+00:00"
+  },
+  {
+    "lote": 4,
+    "arquivo": "data/raw/lote_004.csv",
+    "periodos": [
+      "2009-11",
+      "2009-12",
+      "2010-03"
+    ],
+    "linhas": 793,
+    "sha256": "a91cf3fdb422",
+    "ingerido_em": "2026-11-20T19:06:52+00:00"
   }
 ]

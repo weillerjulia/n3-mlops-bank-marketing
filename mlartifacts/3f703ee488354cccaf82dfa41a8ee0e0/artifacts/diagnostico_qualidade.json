@@ -1,0 +1,14 @@
+{
+  "linhas": 39394,
+  "duplicatas": 12,
+  "nulos": 0,
+  "unknown_por_coluna": {
+    "job": 313,
+    "marital": 79,
+    "education": 1597,
+    "default": 8561,
+    "housing": 944,
+    "loan": 944
+  },
+  "taxa_positiva": 0.09435447022389196
+}
