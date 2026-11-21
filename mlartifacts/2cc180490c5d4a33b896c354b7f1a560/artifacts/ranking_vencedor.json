@@ -1,0 +1,1 @@
+{"columns":["modelo","algoritmo","average_precision_media","average_precision_desvio"],"data":[["B","random_forest",0.4016477921,0.0225390849],["A","regressao_logistica",0.3847310648,0.0204652638]]}

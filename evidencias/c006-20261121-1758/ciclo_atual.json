@@ -1,0 +1,93 @@
+{
+  "cycle_id": "c006-20261121-1758",
+  "data_version": "v006-c063ab96",
+  "execucao": {
+    "gatilho": "schedule",
+    "github_run_id": "44932827856",
+    "github_run_url": "https://github.com/weillerjulia/n3-mlops-bank-marketing/actions/runs/44932827856",
+    "commit": "a0db65c",
+    "iniciado_em": "2026-11-21T17:58:15+00:00"
+  },
+  "lote": {
+    "novo": true,
+    "lote": 5,
+    "arquivo": "data/raw/lote_005.csv",
+    "periodos": [
+      "2010-04",
+      "2010-05",
+      "2010-06"
+    ],
+    "linhas": 615,
+    "sha256": "979101a920a1",
+    "ingerido_em": "2026-11-21T17:58:15+00:00"
+  },
+  "drift_alerta": true,
+  "features_com_drift": [
+    "nr.employed",
+    "euribor3m",
+    "cons.conf.idx",
+    "emp.var.rate",
+    "cons.price.idx",
+    "month",
+    "poutcome",
+    "previous",
+    "job",
+    "faixa_etaria",
+    "default",
+    "age"
+  ],
+  "psi_max": 9.7881,
+  "run_etl": "ad7ee1a637e34534ba0c3ce8815d9953",
+  "features_eleitas": [
+    "euribor3m",
+    "cons.price.idx",
+    "emp.var.rate",
+    "poutcome",
+    "cons.conf.idx",
+    "month",
+    "contact",
+    "nr.employed"
+  ],
+  "run_votacao": "cd9c988888ac4cf197db594fc7041cbb",
+  "candidatos": {
+    "A": {
+      "run_id": "773942ab1df9476aaca30e64bcaaa36a",
+      "algoritmo": "regressao_logistica",
+      "val": {
+        "average_precision": 0.40824273312727255,
+        "roc_auc": 0.7899147804898435,
+        "f1": 0.4251968503937008,
+        "precision": 0.3283442469597755,
+        "recall": 0.6030927835051546,
+        "prevalencia": 0.0981947022102244,
+        "conversao_top": 0.30548523206751055,
+        "lift_top": 3.1110154131686167,
+        "captura_top": 0.6219931271477663
+      },
+      "cv_average_precision_media": 0.38473106475704566,
+      "cv_average_precision_desvio": 0.020465263796776705
+    },
+    "B": {
+      "run_id": "cbb0009f675e44da9da55613162a527d",
+      "algoritmo": "random_forest",
+      "val": {
+        "average_precision": 0.4153782739308943,
+        "roc_auc": 0.800762828734823,
+        "f1": 0.4154535274356103,
+        "precision": 0.3081395348837209,
+        "recall": 0.6374570446735395,
+        "prevalencia": 0.0981947022102244,
+        "conversao_top": 0.3105485232067511,
+        "lift_top": 3.1625792045471024,
+        "captura_top": 0.6323024054982818
+      },
+      "cv_average_precision_media": 0.4016477921000542,
+      "cv_average_precision_desvio": 0.02253908485695801
+    }
+  },
+  "decisao": {
+    "decisao": "PROMOVIDO",
+    "motivo": "Candidato (0.4154) supera o vigente (0.3901) em pelo menos 0.005 na validação do ciclo."
+  },
+  "run_decisao": "2cc180490c5d4a33b896c354b7f1a560"
+}
