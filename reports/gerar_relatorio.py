@@ -1,6 +1,7 @@
 """Gera reports/relatorio_n3.pdf a partir dos artefatos versionados no repositório.
 
-Tudo que é número no relatório vem de arquivos produzidos pelo pipeline:
+Os resultados dos ciclos vêm de arquivos produzidos pelo pipeline (as descrições de método,
+o ensaio de referência e a verificação do corte temporal são texto fixo, a revisar se o código mudar):
   - evidencias/<cycle_id>/ciclo_atual.json, votacao_ciclo.json, cv_ciclo.csv
   - models/historico_decisoes.csv, models/modelo_vigente.json
   - mlflow.db (runs e tags de cada ciclo)
@@ -12,7 +13,9 @@ Basta rodar de novo após novos ciclos agendados para o relatório incluí-los:
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -33,6 +36,12 @@ from reportlab.platypus import (Image, KeepTogether, PageBreak, Paragraph, Simpl
                                 Spacer, Table, TableStyle)
 
 RAIZ = Path(__file__).resolve().parents[1]
+os.chdir(RAIZ)  # src.utils localiza a raiz pelo diretório atual
+sys.path.insert(0, str(RAIZ))
+
+from src.drift import relatorio_drift  # noqa: E402
+from src.ingestao import carregar_fonte  # noqa: E402
+from src.preprocessamento import limpar_e_criar_atributos, particionar, separar_xy  # noqa: E402
 SAIDA = RAIZ / "reports" / "relatorio_n3.pdf"
 TMP = RAIZ / "reports" / "_figuras"
 INTEGRANTES = "Miguel, Julia, Ana Olska, Ana Paula e Eduardo"
@@ -74,9 +83,9 @@ S = {
     "corpo": ParagraphStyle("corpo", parent=_ss["Normal"], fontName=FONTE, fontSize=10,
                             leading=14, alignment=TA_JUSTIFY, spaceAfter=6),
     "h1": ParagraphStyle("h1", parent=_ss["Heading1"], fontName=FONTE_B, fontSize=15,
-                         textColor=COR, spaceBefore=10, spaceAfter=8),
+                         textColor=COR, spaceBefore=10, spaceAfter=8, keepWithNext=1),
     "h2": ParagraphStyle("h2", parent=_ss["Heading2"], fontName=FONTE_B, fontSize=11.5,
-                         textColor=COR, spaceBefore=8, spaceAfter=4),
+                         textColor=COR, spaceBefore=8, spaceAfter=4, keepWithNext=1),
     "cel": ParagraphStyle("cel", parent=_ss["Normal"], fontName=FONTE, fontSize=8.5, leading=10.5),
     "celb": ParagraphStyle("celb", parent=_ss["Normal"], fontName=FONTE_B, fontSize=8.5,
                            leading=10.5, textColor=colors.white),
@@ -176,6 +185,44 @@ def runs_mlflow():
     return df
 
 
+def avaliacao_por_ciclo():
+    """Métricas do teste (notebook 04) e das previsões (05) gravadas no MLflow."""
+    con = sqlite3.connect(RAIZ / "mlflow.db")
+    sql = """SELECT t.value, x.key, x.value FROM {} x
+             JOIN tags t ON t.run_uuid = x.run_uuid AND t.key = 'cycle_id'"""
+    res = {}
+    for tab in ("metrics", "params"):
+        for ciclo, chave, valor in con.execute(sql.format(tab)):
+            if chave.startswith(("vigente_teste_", "previsao_", "origem_previsoes")):
+                res.setdefault(ciclo, {})[chave] = valor
+    con.close()
+    return res
+
+
+def auditar_dados(cfg, ciclos, features):
+    """PSI registrado x recalculado com o código atual, e sobreposição teste x treino."""
+    d = limpar_e_criar_atributos(carregar_fonte(cfg), cfg)
+    conhecidos, drift = [], {}
+    for c in ciclos:
+        novos = c["lote"]["periodos"]
+        arq = RAIZ / "mlartifacts" / c["run_etl"] / "artifacts" / "drift_psi.json"
+        if novos and conhecidos and arq.exists():
+            j = json.loads(arq.read_text(encoding="utf-8"))
+            reg = pd.DataFrame(j["data"], columns=j["columns"]).set_index("feature")["psi"]
+            xr, _ = separar_xy(d[d["periodo"].isin(conhecidos)], cfg)
+            xn, _ = separar_xy(d[d["periodo"].isin(novos)], cfg)
+            atual = relatorio_drift(xr, xn, cfg).set_index("feature")["psi"]
+            drift[c["cycle_id"]] = {
+                "reg": reg, "avisou": (c["dir"] / "avisos.txt").exists(),
+                "corrigido": {f: (reg[f], atual[f]) for f in reg.index
+                              if abs(reg[f] - atual[f]) > 1e-3}}
+        conhecidos += novos
+    treino, _, teste = particionar(d[d["periodo"].isin(conhecidos)], cfg)
+    vistos = set(map(tuple, treino[features].fillna(-1).values))
+    iguais = [tuple(x) in vistos for x in teste[features].fillna(-1).values]
+    return drift, sum(iguais) / len(iguais)
+
+
 # ------------------------------------------------------------------ figuras
 def fig_cv(c, destino):
     cv = c["cv"]
@@ -245,6 +292,8 @@ def montar():
     prim = ciclos[0]
     n = len(ciclos)
     runs = runs_mlflow()
+    aval = avaliacao_por_ciclo()
+    drift, sobrepos = auditar_dados(cfg, ciclos, manifesto["features"])
     W = A4[0] - 4 * cm
     st = []
 
@@ -287,6 +336,10 @@ def montar():
              "para que a equipe ligue primeiro para quem tem mais chance de aderir."),
            tabela([
                ["Item", "Definição"],
+               ["Citação", "Moro, S., Cortez, P., Rita, P. (2014). <i>A data-driven approach to "
+                           "predict the success of bank telemarketing</i>. Decision Support "
+                           "Systems, 62, 22-31. Adaptações: divisão em lotes, limpeza e "
+                           "atributos derivados."],
                ["Fonte e licença", "Bank Marketing, UCI Machine Learning Repository "
                                    "(arquivo <i>bank-additional-full.csv</i>), licença CC BY 4.0."],
                ["Unidade de observação", "Um contato telefônico com um cliente: 41.188 contatos "
@@ -300,14 +353,15 @@ def montar():
                              "indicadores macroeconômicos (taxa de emprego, IPC, confiança do "
                              "consumidor, Euribor 3m, nº de empregados)."],
                ["Métrica principal", "AUC-PR (<i>average_precision</i>), maximizar. Definida em "
-                                     "<i>config/config.yaml</i> antes de qualquer treino."],
+                                     "<i>config/config.yaml</i> no commit inicial, antes do "
+                                     "primeiro ciclo agendado."],
                ["Particionamento", "70% treino / 15% validação / 15% teste, por hash estável do "
                                    "<i>registro_id</i>; competição A × B por validação cruzada "
                                    f"estratificada de {cfg['avaliacao']['cv_folds']} folds dentro "
                                    "do treino."],
                ["Chegada de dados", "Lote inicial = mai a nov/2008. A cada ciclo, o pipeline "
                                     "busca na fonte os próximos 3 meses de campanha "
-                                    "(8 lotes adicionais)."],
+                                    "(8 lotes no total: o inicial + 7)."],
            ], [4 * cm, W - 4 * cm], cabecalho=True),
            Spacer(1, 6),
            P("<b>Por que AUC-PR.</b> Com a classe positiva rara, a acurácia premia o modelo que "
@@ -324,12 +378,15 @@ def montar():
              "posterior, e o modelo vigente pode ser comparado ao candidato na mesma validação sem "
              "vazamento. O conjunto de teste só é usado para relatar o desempenho final do "
              "vigente; nenhuma decisão (votação, escolha A × B, promoção) olha para ele."),
-           P("<b>Ordem temporal.</b> Testamos também um corte temporal para o teste. Como o volume "
-             "se concentra em 2008-2009 e o perfil da campanha muda depois, o trecho mais recente "
-             "sempre caía em um regime nunca visto, com AUC-ROC ≈ 0,5 em todos os ciclos. Como "
-             "cada contato é um evento independente, a ordem do tempo é respeitada na "
-             "<b>chegada dos lotes</b> (o modelo nunca vê o futuro antes da hora) e a mudança "
-             "de regime é vigiada pelo monitor de drift (seção 10)."),
+           P("<b>Ordem temporal e limite do teste.</b> Num corte temporal 70/15/15 (todas as "
+             "features, os dois algoritmos, 8 tamanhos de histórico) a AUC-ROC no trecho mais "
+             "recente variou de 0,41 a 0,69, porque a campanha muda de regime. Adotamos o hash "
+             "para ter partições estáveis e comparáveis entre ciclos. Em contrapartida, os "
+             "indicadores macroeconômicos se repetem entre contatos da mesma época: com as "
+             f"features do vigente, <b>{pct(sobrepos)}</b> das linhas de teste têm uma linha de "
+             "atributos idêntica no treino. O teste mede desempenho <b>dentro de períodos já "
+             "conhecidos</b> e é otimista para o futuro; por isso a seção 9 mostra também o "
+             "desempenho na campanha seguinte."),
            ]
 
     # ---------------- 2. ETL
@@ -347,8 +404,8 @@ def montar():
              "<i>data/raw/lote_NNN.csv</i> e registra período, nº de linhas e SHA-256 em "
              "<i>data/state/lotes_ingeridos.json</i>. Um lote já registrado nunca é reingerido, e "
              "os registros têm <i>registro_id</i> único, então não há duplicação entre ciclos. "
-             "A <i>data_version</i> do ciclo combina o nº do lote com o hash do conjunto "
-             f"acumulado (ex.: <i>{prim['data_version']}</i>)."),
+             "A <i>data_version</i> combina o nº de lotes com um hash dos hashes "
+             f"dos lotes (ex.: <i>{prim['data_version']}</i>)."),
            P("Diagnóstico e tratamentos", "h2"),
            tabela([
                ["Verificação", f"Resultado (lote inicial, {num(d0.get('linhas', 0), 0)} linhas)",
@@ -380,22 +437,27 @@ def montar():
     fcfg = cfg["features"]
     st += [P("3. Três métodos de seleção de features", "h1"),
            P("O notebook <i>02_votacao_features</i> executa os três métodos sobre o mesmo treino "
-             "já pré-processado (<i>src/features.py</i>, classe <i>VotacaoFeatures</i>). Como o "
+             "já pré-processado (<i>src/features.py</i>, classe <i>VotingSelector</i>). Como o "
              "one-hot gera várias colunas por variável, os resultados são agregados de volta para "
              "a variável original, para que a votação eleja variáveis, e não categorias soltas."),
            tabela([
                ["Método", "Como ranqueia", "Agregação por variável"],
                ["SelectKBest (informação mútua)",
                 "Dependência estatística com o alvo; capta relações não lineares e funciona com "
-                "colunas numéricas e binárias.", "Maior score entre as colunas"],
+                "colunas numéricas e binárias. Equivale ao critério do SelectKBest, implementado "
+                "com <i>mutual_info_classif</i> + top-k por variável.", "Maior score entre as colunas"],
                ["Importância por Random Forest",
-                "Redução média de impureza (200 árvores, seed 42).", "Soma das importâncias"],
+                "Redução média de impureza (150 árvores, seed 42).", "Soma das importâncias"],
                ["RFE com Regressão Logística",
                 "Elimina 10% das colunas por rodada até sobrar uma; devolve o ranking completo.",
                 "Melhor posição entre as colunas"],
            ], [4.3 * cm, W - 8.3 * cm, 4 * cm]),
            Spacer(1, 6),
-           P(f"Cada método aprova suas <b>top {fcfg['top_k']}</b> variáveis. Os rankings, scores e "
+           P(f"Cada método aprova suas <b>top {fcfg['top_k']}</b> variáveis. "
+             "Empates na última posição recebem todos o voto, então um método pode aprovar mais "
+             f"de {fcfg['top_k']} (neste ciclo: {int(tv.voto_selectkbest.sum())}, "
+             f"{int(tv.voto_random_forest.sum())} e {int(tv.voto_rfe.sum())}, na ordem da tabela). "
+             "Os rankings, scores e "
              "o gráfico abaixo são registrados como artefatos do run <i>02_votacao</i> no MLflow."),
            ]
     png = ult["dir"] / "rankings_features.png"
@@ -428,11 +490,15 @@ def montar():
            P(f"<b>Conjunto eleito ({len(ult['features_eleitas'])}):</b> "
              + ", ".join(f"<i>{f}</i>" for f in ult["features_eleitas"]) + ". "
              "Esse é o único conjunto usado pelos dois algoritmos no ciclo e é gravado no "
-             "manifesto do modelo. Observa-se que os métodos se complementam: a informação mútua "
-             "privilegia os indicadores macroeconômicos (Euribor, nº de empregados), a Random "
-             "Forest valoriza idade, profissão e escolaridade, e o RFE destaca mês e taxa de "
-             "variação do emprego. A regra de 2 de 3 elimina variáveis que só um método apoia, "
-             "como <i>nr.employed</i>, muito correlacionada com <i>euribor3m</i>.")]
+             "manifesto do modelo se o candidato for promovido. Os três primeiros de cada método: "
+             + "; ".join(
+                 f"{rot}: " + ", ".join(f"<i>{f}</i>" for f in tv.nsmallest(3, col)["feature"])
+                 for col, rot in (("rank_selectkbest", "informação mútua"),
+                                  ("rank_random_forest", "Random Forest"), ("rank_rfe", "RFE")))
+             + ". Ficaram de fora, com um só voto: "
+             + (", ".join(f"<i>{f}</i>" for f in
+                          tv[(tv.votos == 1) & ~tv.eleita]["feature"]) or "nenhuma")
+             + ".")]
 
     if n >= 2:
         st.append(P("Mudanças no conjunto eleito entre ciclos", "h2"))
@@ -442,7 +508,7 @@ def montar():
             f = c["features_eleitas"]
             ent = sorted(set(f) - set(ant)) if ant is not None else []
             sai = sorted(set(ant) - set(f)) if ant is not None else []
-            lin.append([c["cycle_id"], str(c["lote"]["lote"]), str(len(f)),
+            lin.append([c["cycle_id"], "—" if c["lote"]["lote"] is None else str(c["lote"]["lote"]), str(len(f)),
                         ", ".join(ent) or ("(inicial)" if ant is None else "—"),
                         ", ".join(sai) or "—"])
             ant = f
@@ -489,12 +555,12 @@ def montar():
 
     # ---------------- 6. Eleição / promoção
     pcfg = cfg["promocao"]
-    venc = "B" if cB["cv_average_precision_media"] >= cA["cv_average_precision_media"] else "A"
+    venc = hist.iloc[-1]["vencedor"].split("-")[0]
     st += [P("6. Eleição do vencedor e promoção controlada", "h1"),
            P("O notebook <i>04_selecao_promocao</i> aplica duas decisões automáticas, ambas "
-             "definidas em <i>config.yaml</i> antes do primeiro ciclo (<i>src/promocao.py</i>):"),
+             "definidas em <i>config.yaml</i> antes do primeiro ciclo agendado (<i>src/promocao.py</i>):"),
            P(f"<b>1. Vencedor do ciclo:</b> o candidato com maior AUC-PR média na validação "
-             f"cruzada. <b>2. Promoção:</b> o vencedor é retreinado no treino completo e confrontado "
+             f"cruzada. <b>2. Promoção:</b> o vencedor (já treinado no treino completo pelo notebook 03) é confrontado "
              f"com o modelo vigente na <b>mesma validação</b> do ciclo. Ele só substitui o vigente se "
              f"(a) superar a AUC-PR do vigente em pelo menos <b>{num(pcfg['limiar_melhoria'])}</b> "
              "(margem absoluta, para não trocar de modelo por ruído) e (b) ficar acima da AUC-PR de "
@@ -506,18 +572,18 @@ def montar():
              f"<b>{ult['decisao']['decisao']}</b>: {ult['decisao']['motivo']}"),
            P("Histórico de decisões", "h2")]
     lin = [["Ciclo", "Gatilho", "Lote (linhas)", "CV A", "CV B", "Vencedor",
-            "Val. vencedor", "Val. vigente ant.", "Decisão"]]
+            "Val. do vencedor", "Val. do vigente ant.", "Decisão"]]
     dest = []
     for i, r in enumerate(hist.itertuples(), start=1):
-        lin.append([r.cycle_id, r.gatilho,
-                    f"{r.lote} ({num(r.linhas_lote, 0)})" if r.lote_novo else "sem lote novo",
+        lin.append([r.cycle_id[:4], r.gatilho,
+                    f"{int(r.lote)} ({num(r.linhas_lote, 0)})" if r.lote_novo else "sem lote novo",
                     num(r.cv_A), num(r.cv_B), r.vencedor.split("-", 1)[1].replace("_", " "),
                     num(r.candidato_val_average_precision),
                     num(r.vigente_anterior_val_average_precision), r.decisao])
         if r.decisao == "PROMOVIDO":
             dest.append(i)
-    st += [tabela(lin, [3.2 * cm, 1.7 * cm, 2 * cm, 1.1 * cm, 1.1 * cm, 2 * cm, 1.5 * cm,
-                        1.6 * cm, W - 14.2 * cm], destaque=dest),
+    st += [tabela(lin, [1.3 * cm, 1.7 * cm, 2.1 * cm, 1.4 * cm, 1.4 * cm, 2.1 * cm, 1.9 * cm,
+                        2.1 * cm, W - 14 * cm], destaque=dest),
            P("Fonte: <i>models/historico_decisoes.csv</i>. AUC-PR em validação; linhas em verde = "
              "promoção.", "leg")]
     if n >= 2:
@@ -552,13 +618,14 @@ def montar():
              "<i>gatilho</i>, e se distinguem pela tag <i>etapa</i>:"),
            tabela([
                ["Run", "Conteúdo registrado"],
-               ["01_etl", "Diagnóstico de qualidade (antes/depois), lote, hash, linhas, PSI de drift."],
+               ["01_etl", "Diagnóstico de qualidade antes da limpeza, lote e períodos, linhas por "
+                          "partição, PSI de drift."],
                ["02_votacao", "Parâmetros da votação, tabela de votos, rankings, gráfico, features eleitas."],
-               ["03_modelo_A / 03_modelo_B", "Hiperparâmetros, seed, features, métricas por fold e "
-                                             "médias, métricas de validação, modelo serializado."],
-               ["04_decisao", "Ranking A × B, métrica do vigente, decisão, motivo, manifesto."],
-               ["05_previsoes", "Previsões do vigente (CSV), métricas de impacto da lista de "
-                                "contato, modelo/run vigente usado."],
+               ["03_treino (2 runs, tag modelo = A ou B)", "Hiperparâmetros, seed, features, métricas "
+                                             "por fold e médias, métricas de validação, modelo serializado."],
+               ["04_promocao", "Ranking A × B, métrica do vigente, decisão, motivo, manifesto, "
+                               "métricas do vigente no teste."],
+               ["05_previsoes", "Previsões do vigente (CSV), métricas das previsões, modelo/run vigente usado."],
            ], [4.5 * cm, W - 4.5 * cm]),
            Spacer(1, 6),
            P("<b>Persistência entre execuções.</b> O runner do GitHub Actions é descartado ao fim "
@@ -567,15 +634,17 @@ def montar():
              "<i>ciclo cXXX (schedule) [skip ci]</i>), e também publica esse pacote como "
              "<i>artifact</i> baixável (retenção de 90 dias). O ciclo seguinte começa com o "
              "<i>checkout</i> desse estado. Para consultar: "
-             "<i>mlflow ui --backend-store-uri sqlite:///mlflow.db</i>; os caminhos dos artefatos "
-             "são reescritos para a pasta local por <i>src/utils.py</i>, então o histórico gerado "
-             "no GitHub abre normalmente em qualquer máquina.")]
+             "<i>mlflow ui --backend-store-uri sqlite:///mlflow.db</i>. O banco guarda os caminhos "
+             "do runner; para abrir os artefatos em outra máquina, rode antes a reescrita de "
+             "caminhos de <i>src/utils.py</i> (comando no README).")]
     if not runs.empty:
         r = runs.dropna(subset=["cycle_id"])
-        lin = [["cycle_id", "etapa", "run_id", "status", "gatilho"]]
-        for x in r.itertuples():
-            lin.append([x.cycle_id, x.etapa or x.name, x.run_uuid, x.status, x.gatilho or "—"])
-        st += [tabela(lin, [3.3 * cm, 3 * cm, 6.3 * cm, 2.1 * cm, W - 14.7 * cm]),
+        lin = [["cycle_id", "runs", "status", "gatilho", "run_id da decisão (04_promocao)"]]
+        for cid, g in r.groupby("cycle_id"):
+            lin.append([cid, str(len(g)), ", ".join(sorted(set(g.status))),
+                        ", ".join(sorted(set(g.gatilho))),
+                        ", ".join(g[g.etapa == "04_promocao"].run_uuid)])
+        st += [tabela(lin, [3.6 * cm, 1.3 * cm, 2.2 * cm, 2 * cm, W - 9.1 * cm]),
                P("Runs lidos diretamente de <i>mlflow.db</i>.", "leg")]
 
     # ---------------- 8. Workflow
@@ -607,6 +676,14 @@ def montar():
              "nunca deixa um modelo promovido indevidamente: o vigente anterior continua no "
              "repositório."),
            P("Evidências de execução", "h2")]
+    atrasos = []
+    for c in ciclos:
+        if c["execucao"]["gatilho"] == "schedule":
+            t = datetime.fromisoformat(c["execucao"]["iniciado_em"])
+            atrasos.append(((t.hour * 60 + t.minute - (11 * 60 + 17)) % 1440) / 60)
+    if atrasos:
+        st.append(P(f"O GitHub iniciou os ciclos de {num(min(atrasos), 1)} a "
+                    f"{num(max(atrasos), 1)} horas depois do horário do cron."))
     lin = [["Ciclo", "Gatilho", "Início (UTC)", "Execução no GitHub Actions"]]
     for c in ciclos:
         e = c["execucao"]
@@ -626,23 +703,32 @@ def montar():
     prev = pd.read_csv(ult["dir"] / "previsoes.csv")
     h_ult = hist.iloc[-1]
     st += [P("9. Previsões com o modelo vigente", "h1"),
-           P("O notebook <i>05_previsoes</i> carrega <i>models/vigente/modelo.joblib</i> — um único "
-             "<i>Pipeline</i> com seleção das features eleitas, pré-processamento ajustado e "
-             "classificador — e confere que as features do manifesto são as mesmas do pipeline "
-             "carregado (<i>assert</i> que interrompe o ciclo se divergirem). O desempenho final "
-             "do vigente é medido no <b>conjunto de teste</b>, reservado e nunca usado nas "
-             "decisões, e gravado no histórico. Resultado do ciclo:"),
-           P(f"• desempenho de teste do vigente: AUC-PR = <b>{num(h_ult['vigente_teste_average_precision'])}</b> e lift de "
-             f"<b>{num(h_ult['vigente_teste_lift_top'], 2)}×</b> nos 20% de maior probabilidade, ou "
-             "seja, ligar para esse grupo gera esse múltiplo de adesões em relação a ligar ao "
-             "acaso;"),
-           P(f"• o notebook gera previsões para os <b>{num(len(prev), 0)}</b> contatos do <b>próximo período "
-             "de campanha</b> (registros que o pipeline ainda não incorporou, logo não usados na "
-             "escolha do modelo), ordenados por probabilidade e com a recomendação "
-             f"<i>ligar</i> para os {pct(cfg['negocio']['percentual_contato'], 0)} do topo;"),
-           P("• e mostra o impacto da lista (adesões capturadas ligando só para o topo × ligando "
-             "para todos) e a comparação entre ciclos (lote, features, CV de A e B, decisão), "
-             "além de todos os runs do experimento recuperados do MLflow.")]
+           P("O notebook <i>05_previsoes</i> lê o manifesto e carrega o arquivo que ele aponta em "
+             "<i>models/historico/</i> (pipeline com seleção, pré-processamento e classificador), "
+             "e interrompe o ciclo se as features divergirem das do manifesto. O teste reservado "
+             "é avaliado pelo notebook 04, depois da decisão."),
+           P(f"• Teste reservado: AUC-PR = <b>{num(h_ult['vigente_teste_average_precision'])}</b> "
+             f"e lift de <b>{num(h_ult['vigente_teste_lift_top'], 2)}×</b> nos "
+             f"{pct(cfg['negocio']['percentual_contato'], 0)} do topo."),
+           P(f"• Previsões do último ciclo: <b>{num(len(prev), 0)}</b> registros, origem: "
+             f"{aval[ult['cycle_id']]['origem_previsoes'].translate(str.maketrans('', '', chr(39) + '[]'))}. São "
+             f"{num(prev.probabilidade_adesao.nunique(), 0)} probabilidades distintas, então há "
+             "muitos empates no ranking."),
+           P("Teste × campanha seguinte", "h2")]
+    lin = [["Ciclo", "AUC-ROC teste", "AUC-ROC campanha seguinte", "Lift teste",
+            "Lift campanha seguinte", "Adesão na campanha seguinte"]]
+    for c in ciclos:
+        a = aval[c["cycle_id"]]
+        fora = a["origem_previsoes"].startswith("próxima")
+        lin.append([c["cycle_id"][:4], num(a["vigente_teste_roc_auc"]),
+                    num(a["previsao_roc_auc"]) if fora else "—",
+                    num(a["vigente_teste_lift_top"], 2),
+                    num(a["previsao_lift_top"], 2) if fora else "—",
+                    pct(a["previsao_prevalencia"]) if fora else "—"])
+    st += [tabela(lin, [1.4 * cm, 2.6 * cm, 3.6 * cm, 2.2 * cm, 3.4 * cm, W - 13.2 * cm]),
+           P("A campanha seguinte é o desempenho fora do tempo. Os lifts das duas colunas não são "
+             "diretamente comparáveis: o lift máximo possível cai quando a taxa de adesão sobe. "
+             "— = fonte esgotada.", "leg")]
     top = prev.head(8)
     lin = [["registro_id", "período", "idade", "profissão", "canal", "prob. adesão", "ranking", "ligar"]]
     for r in top.itertuples():
@@ -658,47 +744,63 @@ def montar():
     st += [P("10. Recurso adicional: monitoramento de drift com alerta", "h1"),
            tabela([
                ["Problema identificado",
-                "Os dados cobrem 2008-2010: crise financeira, queda da Euribor de ~5% para ~1% e "
+                "Os dados cobrem 2008-2010: crise financeira, queda da Euribor de ~5% para menos de 1% e "
                 "mudança no público da campanha. A prevalência de adesão muda de ~5% no lote "
                 "inicial para valores bem maiores depois. Um modelo treinado no regime antigo pode "
                 "envelhecer sem que ninguém perceba, e a regra de promoção sozinha só olha "
                 "desempenho, não a causa."],
                ["Justificativa",
-                "Saber <i>quais</i> atributos mudaram explica por que a votação trocou features ou "
-                "por que o vigente perdeu desempenho, e avisa a equipe antes de o problema chegar "
+                "Saber <i>quais</i> atributos mudaram ajuda a investigar por que a votação trocou "
+                "features ou o vigente perdeu desempenho, e avisa a equipe antes de o problema chegar "
                 "às ligações."],
                ["Solução implementada",
                 "<i>src/drift.py</i> calcula o PSI (Population Stability Index) de cada atributo, "
                 "lote novo × dados já conhecidos, com 10 bins por quantis para numéricos e "
-                "frequências para categóricos. Faixas: PSI &lt; 0,10 estável; 0,10–0,25 atenção; "
+                "frequências para categóricos (quando os quantis "
+                "não separam os valores, moda × demais). Faixas: PSI &lt; 0,10 estável; 0,10–0,25 atenção; "
                 "≥ 0,25 <b>alerta</b> (limiares em <i>config.yaml → drift</i>)."],
                ["Ponto de integração",
                 "Executado no notebook 01 a cada lote novo. O alerta vira anotação "
-                "<i>::warning::</i> no GitHub Actions e tabela no resumo da execução; o PSI por "
+                "<i>::warning::</i> no log do GitHub Actions e uma linha no resumo da execução; o PSI por "
                 "atributo é registrado no run <i>01_etl</i> do MLflow; a flag "
-                "<i>drift_alerta</i> e as features afetadas vão para o manifesto do modelo e para "
-                "<i>historico_decisoes.csv</i>."],
+                "<i>drift_alerta</i> e as features afetadas vão para o manifesto do modelo (se houver promoção); "
+                "a flag e o PSI máximo, para <i>historico_decisoes.csv</i>."],
                ["Resultado demonstrado",
                 (f"{len(alertas)} ciclo(s) com alerta; PSI máximo observado = {num(psis.max())}. "
                  if len(psis) else
                  "No ciclo inicial não há referência anterior, então o PSI ainda não é calculado "
                  "(<i>psi_max</i> vazio no histórico). ")
-                + "A partir do segundo ciclo, a tabela de PSI por atributo e o gráfico ficam no "
-                  "notebook 01 executado em <i>evidencias/&lt;cycle_id&gt;/</i>, e a coluna "
-                  "<i>drift_alerta</i> do histórico mostra em quais ciclos houve alerta."],
+                + "Detalhe por ciclo na tabela abaixo e no notebook 01 de cada ciclo."],
            ], [3.8 * cm, W - 3.8 * cm], cabecalho=False)]
-    if len(psis):
-        lin = [["Ciclo", "PSI máx.", "Alerta"]]
-        for r in hist.itertuples():
-            lin.append([r.cycle_id, num(r.psi_max), "sim" if str(r.drift_alerta) == "True" else "não"])
-        st += [Spacer(1, 6), tabela(lin, [5 * cm, 3 * cm, 3 * cm])]
+    if drift:
+        lin = [["Ciclo", "Atributos em alerta", "Três maiores PSI registrados", "Aviso no log do job"]]
+        for cid, d in drift.items():
+            lin.append([cid[:4], str(int((d["reg"] >= cfg["drift"]["psi_alerta"]).sum())),
+                        ", ".join(f"{f} {num(v, 2)}" for f, v in d["reg"].nlargest(3).items()),
+                        "sim" if d["avisou"] else "não"])
+        st += [Spacer(1, 6), tabela(lin, [1.5 * cm, 2.8 * cm, W - 7.3 * cm, 3 * cm]),
+               P("PSI muito acima de 1 indica faixas sem interseção entre referência e lote. "
+                 "<i>month</i> muda por construção, pois cada lote traz outros meses.", "leg")]
+    corr = [(cid, f, v) for cid, d in drift.items() for f, v in d["corrigido"].items()]
+    if corr:
+        st += [P("Falhas encontradas e corrigidas", "h2"),
+               P("Na revisão de 22/11/2026 encontramos duas falhas no monitor, corrigidas no commit "
+                 "<i>f17d0df</i> sem efeito sobre votação, modelos ou promoção. (1) O "
+                 "<i>::warning::</i> ficava preso no notebook executado e não virava anotação no "
+                 "GitHub; agora é repetido no log do job e salvo em "
+                 "<i>evidencias/&lt;cycle_id&gt;/avisos.txt</i>. (2) Quando os quantis formavam um "
+                 "único bin, o PSI dava sempre 0. As evidências originais foram preservadas; "
+                 "abaixo, o valor registrado e o recalculado com o código corrigido:"),
+               tabela([["Ciclo", "Atributo", "PSI registrado", "PSI recalculado"]]
+                      + [[cid[:4], f, num(a), num(b)] for cid, f, (a, b) in corr],
+                      [2 * cm, 5 * cm, 4 * cm, W - 11 * cm])]
 
     # ---------------- 11. Ensaio local
     st += [P("11. Ensaio local de referência (9 ciclos)", "h1"),
-           P("Antes de publicar o repositório, o pipeline completo foi executado localmente "
-             "(<i>bash executar_pipeline.sh</i>, gatilho <i>local</i>) até esgotar a fonte, para "
-             "validar o comportamento de longo prazo. Esses resultados não substituem as "
-             "evidências agendadas, mas mostram o que se espera dos próximos ciclos:"),
+           P("O repositório foi publicado com a tabela abaixo, de um teste local até esgotar a "
+             "fonte. Em 22/11/2026, os ciclos 7 a 9 foram simulados de novo numa cópia isolada, a "
+             "partir do estado do c006, com os mesmos resultados. É uma referência local e não "
+             "substitui as evidências agendadas:"),
            tabela([
                ["Ciclo", "Lote", "Registros novos", "AUC-PR candidato", "AUC-PR vigente ant.", "Decisão"],
                ["1", "mai–nov/2008", "27.680", "0,104", "—", "PROMOVIDO (RF)"],
@@ -726,6 +828,13 @@ def montar():
            P("• <b>Particionamento por hash:</b> "
              "mede generalização para contatos não vistos do mesmo período, não para o futuro; o "
              "drift mitiga, mas não substitui, uma avaliação temporal."),
+           P("• <b>Winsorização de binárias raras:</b> o corte no percentil 99 deixou "
+             "<i>contatado_antes</i> constante no treino de c001 a c003, quando menos de 1% dos "
+             "registros tinha valor 1. A partir de c004 o efeito desaparece. Não alteramos a regra "
+             "no meio do histórico; numa próxima versão, binárias ficariam fora da winsorização."),
+           P("• <b>Métrica e prevalência:</b> parte do crescimento da AUC-PR entre ciclos vem do "
+             "aumento da taxa de adesão, que é o piso da métrica; a AUC-ROC ajuda a separar os "
+             "efeitos."),
            P("• <b>Estado no Git:</b> "
              "versionar <i>mlflow.db</i> e modelos no repositório é simples e gratuito, mas cresce "
              "a cada ciclo; com mais volume, o caminho seria um servidor MLflow com armazenamento "
@@ -740,11 +849,12 @@ def montar():
              "do <i>cron</i>, um lote novo é ingerido sem duplicação, versionado e diagnosticado; "
              "três métodos votam um conjunto único de features; Regressão Logística e Random "
              "Forest competem com o mesmo conjunto e o mesmo protocolo; o vencedor só substitui o "
-             "vigente se superar uma margem definida antes do primeiro treino; e tudo fica "
+             "vigente se superar uma margem definida antes do primeiro ciclo agendado; e tudo fica "
              "registrado no MLflow com <i>cycle_id</i> e <i>data_version</i> comuns, recuperável "
              "entre execuções. O conjunto de teste permanece fora de todas as decisões, e o "
-             "monitor de drift explica as mudanças de regime que o modelo enfrenta ao longo das "
-             "campanhas."),
+             "monitor de drift sinaliza as mudanças de regime. O desempenho na campanha seguinte "
+             "é inferior ao do teste na maior parte dos ciclos, e esse é o número mais realista "
+             "para uso futuro."),
            ]
 
     doc = SimpleDocTemplate(str(SAIDA), pagesize=A4, leftMargin=2 * cm, rightMargin=2 * cm,
