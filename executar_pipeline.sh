@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 
 TMP=evidencias/_ciclo_em_execucao
 rm -rf "$TMP"; mkdir -p "$TMP"
+export AVISOS_PIPELINE="$TMP/avisos.txt"
 
 executar () {
   echo "==> $1"
@@ -14,6 +15,8 @@ executar () {
 }
 
 executar 01_etl
+# Comandos ::warning:: só viram anotação se saírem no log do job (fora do notebook)
+if [ -f "$AVISOS_PIPELINE" ]; then cat "$AVISOS_PIPELINE"; fi
 CYCLE_ID=$(python -c "import json;print(json.load(open('data/state/ciclo_atual.json'))['cycle_id'])")
 executar 02_votacao_features
 executar 03_treino_competicao
@@ -24,6 +27,7 @@ executar 05_previsoes
 DEST="evidencias/$CYCLE_ID"
 mkdir -p "$DEST"
 mv "$TMP"/*.ipynb "$DEST"/
+if [ -f "$AVISOS_PIPELINE" ]; then mv "$AVISOS_PIPELINE" "$DEST"/avisos.txt; fi
 cp data/state/ciclo_atual.json data/state/votacao_ciclo.json data/state/cv_ciclo.csv \
    data/state/rankings_features.png "$DEST"/
 cp models/modelo_vigente.json "$DEST"/modelo_vigente_apos_ciclo.json

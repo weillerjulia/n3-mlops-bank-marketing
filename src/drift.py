@@ -31,8 +31,13 @@ def psi_numerico(ref: pd.Series, novo: pd.Series, bins: int = 10) -> float:
     if ref.empty or novo.empty:
         return 0.0 if ref.empty and novo.empty else 1.0  # coluna "apareceu" ou "sumiu"
     cortes = np.unique(np.quantile(ref, np.linspace(0, 1, bins + 1)))
-    if len(cortes) < 2:  # referência constante
-        return _psi(np.array([1.0, 0.0]), np.array([(novo == ref.iloc[0]).mean(), (novo != ref.iloc[0]).mean()]))
+    if len(cortes) < 3:
+        # Os quantis não separam a referência (constante, binária ou concentrada num valor,
+        # como contatado_antes e previous): haveria um único bin e o PSI seria sempre 0.
+        # Compara, então, "valor mais frequente" x "demais valores".
+        moda = ref.mode().iloc[0]
+        p, q = (ref == moda).mean(), (novo == moda).mean()
+        return _psi(np.array([p, 1 - p]), np.array([q, 1 - q]))
     cortes[0], cortes[-1] = -np.inf, np.inf
     p_ref = np.histogram(ref, cortes)[0] / len(ref)
     p_novo = np.histogram(novo, cortes)[0] / len(novo)

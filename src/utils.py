@@ -150,5 +150,10 @@ def resumo_github(texto_md: str) -> None:
 
 def aviso_github(msg: str) -> None:
     """Gera uma anotação de aviso visível na execução do GitHub Actions."""
-    if os.environ.get("GITHUB_ACTIONS"):
-        print(f"::warning title=Drift detectado::{msg}")
+    linha = "::warning title=Drift detectado::" + msg.replace("%", "%25").replace("\n", "%0A")
+    # O nbconvert guarda os prints dentro do .ipynb, onde o GitHub não os lê. Por isso o
+    # aviso vai para um arquivo, que o executar_pipeline.sh repete no log do job.
+    destino = os.environ.get("AVISOS_PIPELINE")
+    if destino:
+        with open(caminho(destino), "a", encoding="utf-8") as f:
+            f.write(linha + "\n")
