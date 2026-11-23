@@ -6,7 +6,7 @@ Trabalho N3 de Análise Preditiva (Prof. Rodrigo Hagstrom) · Católica de Santa
 
 Pipeline MLOps agendado que, a cada ciclo, incorpora um novo lote de dados, elege as features por votação de três métodos, coloca dois algoritmos para competir, registra tudo no MLflow e decide automaticamente se o modelo vigente deve ser substituído.
 
-## Resultados agendados (até o c006, 21/11/2026)
+## Resultados agendados (até o c007, 22/11/2026)
 
 Histórico completo e atual: [`models/historico_decisoes.csv`](models/historico_decisoes.csv).
 
@@ -18,6 +18,7 @@ Histórico completo e atual: [`models/historico_decisoes.csv`](models/historico_
 | c004 | 19/11 | 0,321 | 0,282 | PROMOVIDO | 0,717 | 0,539 |
 | c005 | 20/11 | 0,363 | 0,347 | PROMOVIDO | 0,750 | 0,647 |
 | c006 | 21/11 | 0,415 | 0,390 | PROMOVIDO | 0,765 | 0,755 |
+| c007 | 22/11 | 0,458 | 0,451 | PROMOVIDO | 0,783 | 0,727 |
 
 O teste por hash mede desempenho em períodos já conhecidos e é otimista para o futuro. A última coluna é o desempenho fora do tempo.
 
@@ -125,7 +126,7 @@ rm -rf data/raw/* data/state/* models/* mlflow.db mlartifacts evidencias/*
    - o pacote do ciclo (MLflow, modelos, evidências) é publicado como **artifact** baixável;
    - o resumo da execução mostra o lote, o drift e a decisão de promoção; se houver drift, sai também um aviso nas anotações do job.
 
-> O GitHub pode atrasar bastante os agendamentos (de 6,7 a 9,8 h entre c001 e c006) e desativa schedules de repositórios sem atividade por 60 dias.
+> O GitHub pode atrasar bastante os agendamentos (de 6,7 a 9,8 h entre c001 e c007) e desativa schedules de repositórios sem atividade por 60 dias.
 >
 > São 8 lotes, então em 8 dias agendados a fonte se esgota. Depois disso os ciclos seguem rodando (mesma `data_version`, vigente mantido). Desative o workflow após a entrega para o repositório não crescer à toa.
 
@@ -143,7 +144,7 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db
 
 A reescrita altera o `mlflow.db`: não commite esse arquivo.
 
-Cada ciclo gera 6 runs com as tags `cycle_id`, `data_version`, `gatilho` e `etapa` (`01_etl`, `02_votacao`, `03_treino` duas vezes, com a tag `modelo` = A ou B, `04_promocao` e `05_previsoes`). Filtro útil: `tags.cycle_id = "c006-20261121-1758"`.
+Cada ciclo gera 6 runs com as tags `cycle_id`, `data_version`, `gatilho` e `etapa` (`01_etl`, `02_votacao`, `03_treino` duas vezes, com a tag `modelo` = A ou B, `04_promocao` e `05_previsoes`). Filtro útil: `tags.cycle_id = "c007-20261122-1830"`.
 
 ## Reproduzir as previsões
 
@@ -193,4 +194,4 @@ EOF
 | Integração | Alerta como anotação no GitHub Actions + linha no resumo da execução; PSI registrado no MLflow; flag `drift_alerta` gravada no manifesto do modelo e no histórico de decisões. |
 | Evidência | Gráfico de PSI no notebook 01 executado de cada ciclo, `avisos.txt` (ciclos com alerta após a correção), ambos em `evidencias/<cycle_id>/`, e coluna `drift_alerta` em `models/historico_decisoes.csv`. |
 
-**Correção em 22/11/2026 (`f17d0df`):** de c002 a c006 o aviso não chegava às anotações do GitHub, e o PSI de `contatado_antes` (c002–c006) e de `previous` (c002–c004) saía 0 por erro de binning. As evidências originais foram preservadas, e o relatório traz os valores recalculados.
+**Correção em 22/11/2026 (`f17d0df`):** de c002 a c006 o aviso não chegava às anotações do GitHub, e o PSI de `contatado_antes` (c002–c006) e de `previous` (c002–c004) saía 0 por erro de binning. As evidências originais foram preservadas, e o relatório traz os valores recalculados. O c007, primeiro ciclo agendado após a correção, gerou a anotação "Drift detectado" no [run 45055360879](https://github.com/weillerjulia/n3-mlops-bank-marketing/actions/runs/45055360879), com 14 atributos, entre eles `contatado_antes` (PSI 0,967) e `previous` (1,089).

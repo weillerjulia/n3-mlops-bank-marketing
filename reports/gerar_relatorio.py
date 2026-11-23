@@ -789,7 +789,9 @@ def montar():
                  "<i>::warning::</i> ficava preso no notebook executado e não virava anotação no "
                  "GitHub; agora é repetido no log do job e salvo em "
                  "<i>evidencias/&lt;cycle_id&gt;/avisos.txt</i>. (2) Quando os quantis formavam um "
-                 "único bin, o PSI dava sempre 0. As evidências originais foram preservadas; "
+                 "único bin, o PSI dava sempre 0. O c007, primeiro ciclo agendado após a correção, "
+                 "gerou a anotação \"Drift detectado\" no run 45055360879 do GitHub Actions e o "
+                 "arquivo <i>avisos.txt</i>. As evidências originais foram preservadas; "
                  "abaixo, o valor registrado e o recalculado com o código corrigido:"),
                tabela([["Ciclo", "Atributo", "PSI registrado", "PSI recalculado"]]
                       + [[cid[:4], f, num(a), num(b)] for cid, f, (a, b) in corr],
