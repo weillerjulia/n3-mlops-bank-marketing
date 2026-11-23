@@ -85,5 +85,16 @@
     "linhas": 847,
     "sha256": "56ec7fab6466",
     "ingerido_em": "2026-11-22T18:30:28+00:00"
+  },
+  {
+    "lote": 7,
+    "arquivo": "data/raw/lote_007.csv",
+    "periodos": [
+      "2010-10",
+      "2010-11"
+    ],
+    "linhas": 332,
+    "sha256": "5f758018c9ae",
+    "ingerido_em": "2026-11-23T22:38:59+00:00"
   }
 ]

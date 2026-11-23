@@ -1,0 +1,1 @@
+::warning title=Drift detectado::Ciclo c008-20261123-2238: drift relevante (PSI >= 0.25) em emp.var.rate, nr.employed, month, cons.conf.idx, euribor3m, cons.price.idx, poutcome, previous, contatado_antes, job, default, faixa_etaria, contact, age
