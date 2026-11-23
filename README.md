@@ -2,7 +2,7 @@
 
 Trabalho N3 de Análise Preditiva (Prof. Rodrigo Hagstrom) · Católica de Santa Catarina
 
-**Integrantes:** Miguel, Julia, Ana Olska, Ana Paula e Eduardo
+**Integrantes:** Miguel, Julia, Ana Olska e Ana Paula
 
 Pipeline MLOps agendado que, a cada ciclo, incorpora um novo lote de dados, elege as features por votação de três métodos, coloca dois algoritmos para competir, registra tudo no MLflow e decide automaticamente se o modelo vigente deve ser substituído.
 
