@@ -1,0 +1,46 @@
+artifact_path: /home/runner/work/n3-mlops-bank-marketing/n3-mlops-bank-marketing/mlartifacts/models/m-5e10ded0db0b40b6952bb8bd16b75df3/artifacts
+flavors:
+  python_function:
+    code: code
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.13.18
+  sklearn:
+    code: code
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.9.1
+    skops_trusted_types: null
+is_signature_from_type_hint: false
+mlflow_version: 3.18.0
+model_id: m-5e10ded0db0b40b6952bb8bd16b75df3
+model_size_bytes: 3791395
+model_uuid: m-5e10ded0db0b40b6952bb8bd16b75df3
+prompts: null
+run_id: e7e9d2cf61344cb4bfe7aa4f74f03709
+signature:
+  inputs: '[{"type": "long", "name": "age", "required": true}, {"type": "string",
+    "name": "job", "required": true}, {"type": "string", "name": "marital", "required":
+    true}, {"type": "string", "name": "education", "required": true}, {"type": "string",
+    "name": "default", "required": true}, {"type": "string", "name": "housing", "required":
+    true}, {"type": "string", "name": "loan", "required": true}, {"type": "string",
+    "name": "contact", "required": true}, {"type": "string", "name": "month", "required":
+    true}, {"type": "string", "name": "day_of_week", "required": true}, {"type": "long",
+    "name": "campaign", "required": true}, {"type": "double", "name": "pdays", "required":
+    false}, {"type": "long", "name": "previous", "required": true}, {"type": "string",
+    "name": "poutcome", "required": true}, {"type": "double", "name": "emp.var.rate",
+    "required": true}, {"type": "double", "name": "cons.price.idx", "required": true},
+    {"type": "double", "name": "cons.conf.idx", "required": true}, {"type": "double",
+    "name": "euribor3m", "required": true}, {"type": "double", "name": "nr.employed",
+    "required": true}, {"type": "long", "name": "contatado_antes", "required": true},
+    {"type": "long", "name": "contatos_totais", "required": true}, {"type": "string",
+    "name": "faixa_etaria", "required": true}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float64", "shape": [-1,
+    2]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2026-11-26 20:12:34.742555'
